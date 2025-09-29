@@ -717,7 +717,8 @@
                             </div>
                             <div class="form-group">
                                 <label for="cpf">CPF <span class="required">*</span></label>
-                                <input type="text" id="cpf" name="cpf" required>
+                                <input type="text" id="cpf" name="cpf" required placeholder="000.000.000-00">
+                                <small id="cpf-error" style="color: red; display: none;">CPF inválido.</small>
                             </div>
                         </div>
                         <div class="form-row two-columns">
@@ -878,7 +879,8 @@
 
             // Campos condicionais
             const nomeCompleto = document.getElementById('nomeCompleto');
-            const cpf = document.getElementById('cpf');
+            const cpfInput = document.getElementById('cpf'); // Renomeado para evitar conflito
+            const cpfError = document.getElementById('cpf-error');
             const bloco = document.getElementById('bloco');
             const numeroApartamento = document.getElementById('numeroApartamento');
             const autorizacaoSim = document.getElementById('autorizacao-sim');
@@ -895,12 +897,74 @@
             let termoAceito = false;
             let dataHoraAceiteTermo = '';
 
+            // Função de validação de CPF
+            function validarCPF(cpf) {
+                cpf = cpf.replace(/[.-]/g, ''); // Remove pontos e traços
+                if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+                let sum = 0;
+                let remainder;
+
+                for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (11 - i);
+                remainder = (sum * 10) % 11;
+
+                if ((remainder == 10) || (remainder == 11)) remainder = 0;
+                if (remainder != parseInt(cpf.substring(9, 10))) return false;
+
+                sum = 0;
+                for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (12 - i);
+                remainder = (sum * 10) % 11;
+
+                if ((remainder == 10) || (remainder == 11)) remainder = 0;
+                if (remainder != parseInt(cpf.substring(10, 11))) return false;
+
+                return true;
+            }
+
+            // Função para formatar CPF
+            function formatarCPF(cpf) {
+                cpf = cpf.replace(/\D/g, ''); // Remove tudo que não é dígito
+                if (cpf.length > 11) cpf = cpf.substring(0, 11);
+
+                if (cpf.length > 9) {
+                    cpf = cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+                } else if (cpf.length > 6) {
+                    cpf = cpf.replace(/^(\d{3})(\d{3})(\d{3})$/, '$1.$2.$3');
+                } else if (cpf.length > 3) {
+                    cpf = cpf.replace(/^(\d{3})(\d{3})$/, '$1.$2');
+                }
+                return cpf;
+            }
+
+            // Event listener para formatar CPF enquanto digita
+            cpfInput.addEventListener('input', function() {
+                this.value = formatarCPF(this.value);
+                if (this.value.length === 14 && !validarCPF(this.value)) {
+                    cpfError.style.display = 'block';
+                    this.setCustomValidity('CPF inválido');
+                } else {
+                    cpfError.style.display = 'none';
+                    this.setCustomValidity('');
+                }
+            });
+
+            // Event listener para validar CPF ao sair do campo
+            cpfInput.addEventListener('blur', function() {
+                if (this.value.length > 0 && !validarCPF(this.value)) {
+                    cpfError.style.display = 'block';
+                    this.setCustomValidity('CPF inválido');
+                } else {
+                    cpfError.style.display = 'none';
+                    this.setCustomValidity('');
+                }
+            });
+
             function toggleConditionalFields(show) {
                 if (show) {
                     conditionalFields.classList.remove('hidden');
                     // Torna os campos obrigatórios
                     nomeCompleto.required = true;
-                    cpf.required = true;
+                    cpfInput.required = true;
                     bloco.required = true;
                     numeroApartamento.required = true;
                     document.querySelector('input[name="acompanhante"]').required = true;
@@ -910,7 +974,7 @@
                     conditionalFields.classList.add('hidden');
                     // Remove a obrigatoriedade
                     nomeCompleto.required = false;
-                    cpf.required = false;
+                    cpfInput.required = false;
                     bloco.required = false;
                     numeroApartamento.required = false;
                     document.querySelector('input[name="acompanhante"]').required = false;
@@ -953,6 +1017,13 @@
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
+                // Validação do CPF antes de prosseguir
+                if (presencaSim.checked && cpfInput.value.length > 0 && !validarCPF(cpfInput.value)) {
+                    alert('Por favor, insira um CPF válido.');
+                    cpfInput.focus();
+                    return;
+                }
+
                 const autorizacaoImagem = document.querySelector('input[name="autorizacaoImagem"]:checked');
 
                 // Apenas mostra o modal se a presença for 'sim' E a autorização de imagem for 'sim' E o termo ainda não foi aceito
@@ -965,7 +1036,7 @@
 
             async function enviarParaGoogleSheets() {
                 // !!! IMPORTANTE: SUBSTITUA PELA URL CORRETA DA SUA NOVA IMPLANTAÇÃO !!!
-                const url = 'https://script.google.com/macros/s/AKfycbxULZ7l_GMme6l4iijHlfr0ejp1U_NFZyF_hsAqBLJ_MGDYzPgP_iXkK0Bwltr_cbtl3Q/exec'; // Substitua pela URL do seu Web App
+                const url = 'https://script.google.com/macros/s/AKfycbw6T8kY93y_l03Gg8-y-B_g_0o1Z_Z_Y_X_W_V_U_S_R_Q_P_O_N_M_L_K_J_I_H_G_F_E_D_C_B_A/exec'; // Substitua pela URL do seu Web App
                 const presenca = document.querySelector('input[name="presenca"]:checked' ).value;
 
                 let dados = {
@@ -978,7 +1049,7 @@
 
                 if (presenca === 'sim') {
                     dados.nomeCompleto = nomeCompleto.value;
-                    dados.cpf = cpf.value;
+                    dados.cpf = cpfInput.value; // Usar cpfInput.value
                     dados.bloco = bloco.value;
                     dados.numeroApartamento = numeroApartamento.value;
                     dados.acompanhante = document.querySelector('input[name="acompanhante"]:checked').value;
@@ -1038,3 +1109,4 @@
 
 </body>
 </html>
+
